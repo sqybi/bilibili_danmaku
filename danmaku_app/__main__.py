@@ -321,9 +321,13 @@ def start_app():
     app.exec_()
 
 
-if __name__ == '__main__':
+def main():
     thread_loop = asyncio.new_event_loop()
     t = threading.Thread(target=start_watcher_task, args=(thread_loop,))
     t.daemon = True
     t.start()
     start_app()
+
+
+if __name__ == '__main__':
+    main()

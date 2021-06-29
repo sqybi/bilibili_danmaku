@@ -5,3 +5,5 @@ test.py
 chromedriver.exe
 venv/
 __pycache__/
+build/
+dist/
