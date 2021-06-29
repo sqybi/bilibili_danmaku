@@ -1,0 +1,7 @@
+*.mp3
+config.json
+data.log
+test.py
+chromedriver.exe
+venv/
+__pycache__/
