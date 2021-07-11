@@ -11,7 +11,7 @@ import uuid
 from aip import AipSpeech
 from playsound import playsound
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QBrush
+from PyQt5.QtGui import QBrush, QIcon
 from PyQt5.QtWidgets import QApplication, QMainWindow, QTableWidgetItem
 import ujson
 
@@ -36,6 +36,7 @@ async def init_ws():
 
     retry = 0
     while retry != -1:
+        print('尝试重连')
         status_text = '⌛正在连接弹幕服务器……'
         if retry != 0:
             status_text += f'\n（第{retry}次重试）'
@@ -51,6 +52,7 @@ async def init_ws():
         except:
             await asyncio.sleep(1)
             retry += 1
+    print('重连成功')
 
     ui.label_status.setText('✔️已经连接到弹幕服务器！')
 
@@ -71,6 +73,7 @@ async def heartbeats():
             try:
                 await ws.send_bytes(bilibili.Bilibili.heartbeat)
             except:
+                print('heartbeat unknown error')
                 pass
 
 
@@ -91,7 +94,7 @@ async def fetch_danmaku(dm_queue):
 async def process_danmaku_queue(dm_queue):
     while True:
         m = await dm_queue.get()
-        with open('data.log', 'w+') as f:
+        with open('data.log', 'a') as f:
             f.write('{}\n{}\n\n'.format(datetime.today().strftime('%Y-%m-%d %H:%M:%S'), m))
         if m['msg_type'] == 'danmaku':
             await process_danmaku(m)
@@ -99,6 +102,8 @@ async def process_danmaku_queue(dm_queue):
 
 async def process_danmaku(data):
     try:
+        rowIndex = None
+
         user = data['name']
         msg = data['content']
         audio_text = f'{user}说：{msg}'
@@ -115,6 +120,8 @@ async def process_danmaku(data):
         ui.tableWidget.setItem(rowIndex, 1, QTableWidgetItem(user))
         ui.tableWidget.setItem(rowIndex, 2, QTableWidgetItem(msg))
         ui.tableWidget.setItem(rowIndex, 3, QTableWidgetItem(audio_text))
+        if ui.checkBox_auto_scroll.isChecked():
+            ui.tableWidget.scrollToBottom()
 
         count = 0
         while True:
@@ -145,8 +152,9 @@ async def process_danmaku(data):
             break
     except:
         traceback.print_exc()
-        for colIndex in range(ui.tableWidget.columnCount()):
-            ui.tableWidget.item(rowIndex, colIndex).setBackground(QBrush(Qt.GlobalColor.red))
+        if rowIndex is not None:
+            for colIndex in range(ui.tableWidget.columnCount()):
+                ui.tableWidget.item(rowIndex, colIndex).setBackground(QBrush(Qt.GlobalColor.red))
 
 
 async def get_random_poem():
@@ -261,6 +269,11 @@ def event_per_index_changed():
     save_config()
 
 
+def event_auto_scroll_checked_changed():
+    config['auto_scroll'] = ui.checkBox_auto_scroll.isChecked()
+    save_config()
+
+
 def save_config():
     with open(CONFIG_FILE_NAME, 'w') as f:
         ujson.dump(config, f)
@@ -281,6 +294,11 @@ def set_index_by_config(obj, key):
         obj.setCurrentIndex(config.get(key))
 
 
+def set_checked_by_config(obj, key):
+    if key in config:
+        ui.checkBox_auto_scroll.setChecked(config.get(key))
+
+
 def load_ui_data():
     global config
     if os.path.isfile(CONFIG_FILE_NAME):
@@ -298,12 +316,14 @@ def load_ui_data():
     set_value_by_config(ui.spinBox_pit, 'pit')
     set_value_by_config(ui.spinBox_vol, 'vol')
     set_index_by_config(ui.comboBox_per, 'per')
+    set_checked_by_config(ui.checkBox_auto_scroll, 'auto_scroll')
 
 
 def start_app():
     global ui
     app = QApplication(sys.argv)
     MainWindow = QMainWindow()
+    MainWindow.setWindowIcon(QIcon('./tv.ico'))
     ui = Ui_danmaku_app.Ui_MainWindow()
     ui.setupUi(MainWindow)
     ui.lineEdit_room_number.textChanged.connect(event_room_number_text_changed)
@@ -315,6 +335,7 @@ def start_app():
     ui.spinBox_pit.valueChanged.connect(event_pit_value_changed)
     ui.spinBox_vol.valueChanged.connect(event_vol_value_changed)
     ui.comboBox_per.currentIndexChanged.connect(event_per_index_changed)
+    ui.checkBox_auto_scroll.stateChanged.connect(event_auto_scroll_checked_changed)
     ui.pushButton.clicked.connect(event_start_watcher)
     load_ui_data()
     MainWindow.show()
